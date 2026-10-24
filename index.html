@@ -2,105 +2,274 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>匿名信 · 测试页</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>匿名信</title>
 <style>
-  :root { --bg:#fafafa; --fg:#1c1c1c; --card:#fff; --line:#d8d8d8; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#16181d; --fg:#e8e8e8; --card:#20232a; --line:#3a3f4a; }
-  }
-  body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
-         font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  main { max-width:480px; margin:0 auto; }
-  section { background:var(--card); border:1px solid var(--line);
-            border-radius:10px; padding:16px; margin-bottom:16px; }
-  h2 { margin:0 0 12px; font-size:18px; }
-  input, textarea, button { width:100%; box-sizing:border-box; padding:10px;
-    margin-bottom:10px; font-size:16px; border-radius:6px;
-    border:1px solid var(--line); background:var(--bg); color:var(--fg); }
-  button { cursor:pointer; font-weight:600; }
-  #status, #result { white-space:pre-wrap; margin:0; }
+:root{--bg:#eef1f5;--card:rgba(255,255,255,.9);--fg:#1d2433;--sub:#6b7485;--line:#d5dae3;--ac:#1f6f78;--acfg:#fff}
+[data-theme=dark]{--bg:#12161d;--card:rgba(27,33,43,.9);--fg:#e6eaf0;--sub:#8e98a8;--line:#323a48;--ac:#5fb3bd;--acfg:#0d1a1c}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+#bg{position:fixed;inset:0;z-index:-1;background:center/cover no-repeat}
+#app{display:flex;flex-direction:column;height:100%;max-width:640px;margin:0 auto;padding-top:env(safe-area-inset-top)}
+header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px}
+header h1{margin:0;font-size:20px}
+main{flex:1;overflow-y:auto;padding:0 14px 14px}
+nav{display:flex;gap:8px;padding:8px 14px calc(8px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);backdrop-filter:blur(8px)}
+nav button{flex:1;padding:10px;font-size:16px;border:0;border-radius:8px;background:none;color:var(--sub)}
+nav button.on{background:var(--ac);color:var(--acfg);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;backdrop-filter:blur(6px)}
+.seg{display:flex;gap:6px;margin-bottom:12px}
+.seg button{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font-size:15px}
+.seg button.on{background:var(--ac);color:var(--acfg);border-color:var(--ac)}
+input,textarea{width:100%;padding:10px;margin-bottom:10px;font:inherit;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.btn,.chip{padding:10px 14px;font:inherit;font-weight:600;border:0;border-radius:8px;background:var(--ac);color:var(--acfg)}
+.btn{width:100%}
+.chip{padding:6px 12px;font-size:14px}
+.ghost{background:none;color:var(--sub);border:1px solid var(--line);font-weight:400}
+.btn:disabled{opacity:.5}
+.meta{display:flex;justify-content:space-between;color:var(--sub);font-size:13px}
+.body{white-space:pre-wrap;word-break:break-word;margin:6px 0}
+.rep{background:none;border:0;color:var(--sub);font-size:13px;padding:0}
+.hint{color:var(--sub);font-size:13px;margin:0 0 10px}
+#gate{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
+#gate .card{max-width:340px;text-align:center}
+#sheet{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.45);overflow-y:auto;padding:24px 14px}
+#sheet .card{max-width:480px;margin:0 auto}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:86%;padding:10px 16px;border-radius:8px;background:#222;color:#fff;font-size:14px;z-index:30}
+h3{margin:14px 0 8px;font-size:16px}
 </style>
 </head>
 <body>
-<main>
-  <p id="status">正在创建匿名账户…</p>
+<div id="bg"></div>
 
-  <section>
-    <h2>写一封匿名信</h2>
-    <textarea id="content" rows="5" maxlength="2000" placeholder="信的内容"></textarea>
-    <input id="sendCode" inputmode="numeric" placeholder="数字码（6到12位数字）">
-    <input id="sendPass" inputmode="numeric" maxlength="4" placeholder="密码（最多4位数字）">
-    <button id="sendBtn">发布</button>
-  </section>
+<div id="gate">
+  <div class="card">
+    <h2>匿名信</h2>
+    <p class="hint">为防止滥用，我们会记录访问的 IP 地址，仅用于封禁恶意刷信的行为。</p>
+    <button class="btn" id="human">我是真人，进入</button>
+  </div>
+</div>
 
-  <section>
-    <h2>取信</h2>
-    <input id="readCode" inputmode="numeric" placeholder="数字码">
-    <input id="readPass" inputmode="numeric" maxlength="4" placeholder="密码">
-    <button id="readBtn">查看</button>
-    <p id="result"></p>
-  </section>
-</main>
+<div id="app">
+  <header><h1>匿名信</h1><button class="chip ghost" id="me">我</button></header>
+  <main>
+    <section id="v-home">
+      <div id="feed"></div>
+      <button class="btn ghost" id="more" hidden>加载更多</button>
+    </section>
+
+    <section id="v-pub" hidden>
+      <div class="seg" id="segPub"><button class="on" data-t="post">帖子</button><button data-t="anon">匿名信</button><button data-t="pub">公开信</button></div>
+      <div class="card" data-p="post">
+        <textarea id="pPost" rows="6" maxlength="1000" placeholder="说点什么，所有人可见"></textarea>
+        <button class="btn" id="bPost">发布帖子</button>
+      </div>
+      <div class="card" data-p="anon" hidden>
+        <p class="hint">只有知道数字码和密码的人才能取到这封信，请记好。</p>
+        <textarea id="pAnon" rows="6" maxlength="2000" placeholder="信的内容"></textarea>
+        <input id="aCode" inputmode="numeric" maxlength="12" placeholder="数字码（6到12位数字）">
+        <input id="aPass" inputmode="numeric" maxlength="4" placeholder="密码（最多4位数字）">
+        <button class="btn" id="bAnon">发布匿名信</button>
+      </div>
+      <div class="card" data-p="pub" hidden>
+        <p class="hint">对方搜索收信人名字，或你设的关键词，就能看到这封信。</p>
+        <input id="uName" maxlength="30" placeholder="收信人名字">
+        <input id="uKey" maxlength="30" placeholder="关键词（可不填）">
+        <textarea id="pPub" rows="6" maxlength="2000" placeholder="信的内容"></textarea>
+        <button class="btn" id="bPub">发布公开信</button>
+      </div>
+    </section>
+
+    <section id="v-find" hidden>
+      <div class="seg" id="segFind"><button class="on" data-t="anon">匿名信</button><button data-t="pub">公开信</button></div>
+      <div class="card" data-p="anon">
+        <input id="fCode" inputmode="numeric" maxlength="12" placeholder="数字码">
+        <input id="fPass" inputmode="numeric" maxlength="4" placeholder="密码">
+        <button class="btn" id="bRead">取信</button>
+        <div class="body" id="rOut"></div>
+      </div>
+      <div class="card" data-p="pub" hidden>
+        <input id="fQ" maxlength="30" placeholder="收信人名字或关键词">
+        <button class="btn" id="bSearch">搜索</button>
+      </div>
+      <div id="sOut" data-p="pub" hidden></div>
+    </section>
+  </main>
+  <nav>
+    <button data-v="pub">发布</button>
+    <button data-v="home" class="on">主页</button>
+    <button data-v="find">搜信</button>
+  </nav>
+</div>
+
+<div id="sheet" hidden>
+  <div class="card">
+    <h3 style="margin-top:0">昵称</h3>
+    <input id="nick" maxlength="20">
+    <button class="btn" id="bNick">保存昵称</button>
+    <h3>外观</h3>
+    <button class="btn ghost" id="bTheme">切换日间 / 夜间</button>
+    <input type="file" id="bgFile" accept="image/*" style="margin-top:10px">
+    <button class="btn ghost" id="bBgDel">移除背景图</button>
+    <p class="hint">背景图只保存在这台设备的浏览器里。</p>
+    <h3>我发的匿名信</h3>
+    <div id="mine"></div>
+    <button class="btn ghost" id="bClose" style="margin-top:12px">关闭</button>
+  </div>
+</div>
+<div id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
-  // 把下面两项换成你自己项目的值（Supabase 后台 → Project Settings → API）
-  const SUPABASE_URL = "https://wqyghhbrvzqvspcvruql.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_wJnImK4HELANkdrJs3OMEg_PA7psgpZ";
+const SUPABASE_URL = "https://wqyghhbrvzqvspcvruql.supabase.co";
+const SUPABASE_KEY = "sb_publishable_wJnImK4HELANkdrJs3OMEg_PA7psgpZ";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { lock: async (name, timeout, fn) => await fn() }
+});
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v){ try { localStorage.setItem(k, v); return true; } catch { return false; } },
+  del(k){ try { localStorage.removeItem(k); } catch {} }
+};
+const ERR = {
+  "code taken": "这个数字码已被用过，换一个",
+  "too many requests": "操作太频繁，请稍后再试",
+  "banned": "你的账号或网络已被限制",
+  "invalid code or password": "数字码需 6 到 12 位数字，密码需 1 到 4 位数字",
+  "not logged in": "还没有登录成功，请刷新页面"
+};
+const msgOf = (e) => { const m = (e && e.message) || ""; for (const k in ERR) if (m.includes(k)) return ERR[k]; return "出错了：" + m; };
+let tt;
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 3000); }
+async function rpc(name, args){ const { data, error } = await db.rpc(name, args); if (error) throw error; return data; }
+function run(btn, fn){ btn.onclick = async () => { btn.disabled = true; try { await fn(); } catch (e) { toast(msgOf(e)); } btn.disabled = false; }; }
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+const fmt = (s) => new Date(s).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { lock: async (name, timeout, fn) => await fn() }
+function applyTheme(t){ document.documentElement.dataset.theme = t; store.set("theme", t); }
+applyTheme(store.get("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+function applyBg(){ const b = store.get("bg"); $("bg").style.backgroundImage = b ? "url(" + b + ")" : "none"; }
+applyBg();
+
+function tabs(box, root){
+  box.querySelectorAll("button").forEach((b) => b.onclick = () => {
+    box.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    root.querySelectorAll("[data-p]").forEach((p) => p.hidden = p.dataset.p !== b.dataset.t);
   });
-  const $ = (id) => document.getElementById(id);
+}
+tabs($("segPub"), $("v-pub"));
+tabs($("segFind"), $("v-find"));
 
-  const withTimeout = (p, ms, label) => Promise.race([
-    p, new Promise((_, rej) => setTimeout(() => rej(new Error(label + "超时")), ms))
-  ]);
+function show(v){
+  ["home", "pub", "find"].forEach((n) => $("v-" + n).hidden = n !== v);
+  document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+}
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => { show(b.dataset.v); if (b.dataset.v === "home") loadPosts(true); });
 
-  async function init() {
-    // 第一步：先检查能不能连上 Supabase
-    try {
-      const r = await withTimeout(
-        fetch(SUPABASE_URL + "/auth/v1/health", { headers: { apikey: SUPABASE_KEY } }),
-        8000, "连接服务器");
-      if (!r.ok) { $("status").textContent = "服务器返回异常：" + r.status; return; }
-    } catch (e) {
-      $("status").textContent = "连不上服务器：" + e.message + "（试试关掉或换VPN节点）";
-      return;
-    }
-    // 第二步：匿名登录
-    try {
-      const { data } = await withTimeout(db.auth.getSession(), 8000, "读取登录状态");
-      if (!data.session) {
-        const { error } = await withTimeout(db.auth.signInAnonymously(), 10000, "匿名登录");
-        if (error) { $("status").textContent = "登录失败：" + error.message; return; }
-      }
-      $("status").textContent = "已连接，可以使用。";
-    } catch (e) {
-      $("status").textContent = "登录出错：" + e.message;
-    }
-  }
+function report(type, id){
+  if (!confirm("确定举报这条内容吗？")) return;
+  rpc("report_content", { p_type: type, p_id: id }).then(() => toast("已举报")).catch((e) => toast(msgOf(e)));
+}
 
-  $("sendBtn").onclick = async () => {
-    const { error } = await db.rpc("send_letter", {
-      p_code: $("sendCode").value.trim(),
-      p_pass: $("sendPass").value.trim(),
-      p_content: $("content").value.trim(),
+let before = null;
+async function loadPosts(reset){
+  if (reset){ $("feed").textContent = ""; before = null; }
+  try {
+    const rows = await rpc("list_posts", { p_limit: 20, p_before: before });
+    rows.forEach((r) => {
+      const c = el("div", "card");
+      const m = el("div", "meta");
+      m.append(el("span", "", r.nickname + (r.mine ? "（我）" : "")), el("span", "", fmt(r.created_at)));
+      const rep = el("button", "rep", "举报"); rep.onclick = () => report("post", r.id);
+      c.append(m, el("div", "body", r.content), rep);
+      $("feed").append(c);
+      before = r.created_at;
     });
-    $("status").textContent = error ? "发布失败：" + error.message : "发布成功。";
-  };
+    $("more").hidden = rows.length < 20;
+    if (reset && !rows.length) $("feed").append(el("p", "hint", "还没有帖子，去发布第一条吧。"));
+  } catch (e) { toast(msgOf(e)); }
+}
+$("more").onclick = () => loadPosts(false);
 
-  $("readBtn").onclick = async () => {
-    const { data, error } = await db.rpc("read_letter", {
-      p_code: $("readCode").value.trim(),
-      p_pass: $("readPass").value.trim(),
-    });
-    if (error) { $("result").textContent = "出错：" + error.message; return; }
-    $("result").textContent = data ? data : "数字码或密码不对，没找到信。";
-  };
+run($("bPost"), async () => {
+  await rpc("create_post", { p_content: $("pPost").value });
+  $("pPost").value = ""; toast("发布成功"); show("home"); loadPosts(true);
+});
+run($("bAnon"), async () => {
+  await rpc("send_letter", { p_code: $("aCode").value.trim(), p_pass: $("aPass").value.trim(), p_content: $("pAnon").value.trim() });
+  $("pAnon").value = $("aCode").value = $("aPass").value = ""; toast("匿名信已发布，请记好数字码和密码");
+});
+run($("bPub"), async () => {
+  await rpc("send_public_letter", { p_to_name: $("uName").value, p_keyword: $("uKey").value, p_content: $("pPub").value });
+  $("pPub").value = $("uName").value = $("uKey").value = ""; toast("公开信已发布");
+});
+run($("bRead"), async () => {
+  const t = await rpc("read_letter", { p_code: $("fCode").value.trim(), p_pass: $("fPass").value.trim() });
+  $("rOut").textContent = t || "数字码或密码不对，没找到信。";
+});
+run($("bSearch"), async () => {
+  const rows = await rpc("search_public_letters", { p_query: $("fQ").value });
+  const box = $("sOut"); box.textContent = "";
+  if (!rows.length) box.append(el("p", "hint", "没有找到相关的公开信。"));
+  rows.forEach((r) => {
+    const c = el("div", "card");
+    const m = el("div", "meta"); m.append(el("span", "", "致 " + r.to_name), el("span", "", fmt(r.created_at)));
+    const rep = el("button", "rep", "举报"); rep.onclick = () => report("public_letter", r.id);
+    c.append(m, el("div", "body", r.content), rep); box.append(c);
+  });
+});
 
-  init();
+async function openSheet(){
+  $("sheet").hidden = false;
+  const box = $("mine"); box.textContent = "";
+  const { data, error } = await db.from("letters").select("code,content,created_at").order("created_at", { ascending: false });
+  if (error || !data.length){ box.append(el("p", "hint", error ? msgOf(error) : "还没有发过匿名信。")); return; }
+  data.forEach((r) => {
+    const c = el("div", "card");
+    const m = el("div", "meta"); m.append(el("span", "", "数字码 " + r.code), el("span", "", fmt(r.created_at)));
+    c.append(m, el("div", "body", r.content)); box.append(c);
+  });
+}
+$("me").onclick = openSheet;
+$("bClose").onclick = () => $("sheet").hidden = true;
+run($("bNick"), async () => { await rpc("set_nickname", { p_name: $("nick").value }); toast("昵称已保存"); });
+$("bTheme").onclick = () => {
+  const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(t); rpc("set_theme", { p_theme: t }).catch(() => {});
+};
+$("bBgDel").onclick = () => { store.del("bg"); applyBg(); toast("已移除背景图"); };
+$("bgFile").onchange = (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const s = Math.min(1, 1280 / Math.max(img.width, img.height));
+    const cv = document.createElement("canvas");
+    cv.width = img.width * s; cv.height = img.height * s;
+    cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+    if (store.set("bg", cv.toDataURL("image/jpeg", 0.7))){ applyBg(); toast("背景图已设置"); } else toast("图片太大，保存失败");
+  };
+  img.src = URL.createObjectURL(f);
+};
+
+const timeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error("连接超时，请检查网络或 VPN")), ms))]);
+async function start(){
+  try {
+    const { data } = await timeout(db.auth.getSession(), 8000);
+    if (!data.session){
+      const { error } = await timeout(db.auth.signInAnonymously(), 10000);
+      if (error) throw error;
+    }
+    const p = (await rpc("my_profile"))[0];
+    $("nick").value = p.nickname; applyTheme(p.theme);
+    loadPosts(true);
+  } catch (e) { toast("启动失败：" + e.message); }
+}
+function enter(){ $("gate").hidden = true; start(); }
+$("human").onclick = () => { store.set("human", "1"); enter(); };
+if (store.get("human") === "1") enter();
 </script>
 </body>
 </html>

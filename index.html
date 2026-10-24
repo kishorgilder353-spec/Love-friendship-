@@ -33,3 +33,74 @@
     <input id="sendPass" inputmode="numeric" maxlength="4" placeholder="密码（最多4位数字）">
     <button id="sendBtn">发布</button>
   </section>
+
+  <section>
+    <h2>取信</h2>
+    <input id="readCode" inputmode="numeric" placeholder="数字码">
+    <input id="readPass" inputmode="numeric" maxlength="4" placeholder="密码">
+    <button id="readBtn">查看</button>
+    <p id="result"></p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+  // 把下面两项换成你自己项目的值（Supabase 后台 → Project Settings → API）
+  const SUPABASE_URL = "https://wqyghhbrvzqvspcvruql.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_wJnImK4HELANkdrJs3OMEg_PA7psgpZ";
+
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { lock: async (name, timeout, fn) => await fn() }
+  });
+  const $ = (id) => document.getElementById(id);
+
+  const withTimeout = (p, ms, label) => Promise.race([
+    p, new Promise((_, rej) => setTimeout(() => rej(new Error(label + "超时")), ms))
+  ]);
+
+  async function init() {
+    // 第一步：先检查能不能连上 Supabase
+    try {
+      const r = await withTimeout(
+        fetch(SUPABASE_URL + "/auth/v1/health", { headers: { apikey: SUPABASE_KEY } }),
+        8000, "连接服务器");
+      if (!r.ok) { $("status").textContent = "服务器返回异常：" + r.status; return; }
+    } catch (e) {
+      $("status").textContent = "连不上服务器：" + e.message + "（试试关掉或换VPN节点）";
+      return;
+    }
+    // 第二步：匿名登录
+    try {
+      const { data } = await withTimeout(db.auth.getSession(), 8000, "读取登录状态");
+      if (!data.session) {
+        const { error } = await withTimeout(db.auth.signInAnonymously(), 10000, "匿名登录");
+        if (error) { $("status").textContent = "登录失败：" + error.message; return; }
+      }
+      $("status").textContent = "已连接，可以使用。";
+    } catch (e) {
+      $("status").textContent = "登录出错：" + e.message;
+    }
+  }
+
+  $("sendBtn").onclick = async () => {
+    const { error } = await db.rpc("send_letter", {
+      p_code: $("sendCode").value.trim(),
+      p_pass: $("sendPass").value.trim(),
+      p_content: $("content").value.trim(),
+    });
+    $("status").textContent = error ? "发布失败：" + error.message : "发布成功。";
+  };
+
+  $("readBtn").onclick = async () => {
+    const { data, error } = await db.rpc("read_letter", {
+      p_code: $("readCode").value.trim(),
+      p_pass: $("readPass").value.trim(),
+    });
+    if (error) { $("result").textContent = "出错：" + error.message; return; }
+    $("result").textContent = data ? data : "数字码或密码不对，没找到信。";
+  };
+
+  init();
+</script>
+</body>
+</html>

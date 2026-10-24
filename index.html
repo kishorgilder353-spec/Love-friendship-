@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>匿名信 · 测试页</title>
+<style>
+  :root { --bg:#fafafa; --fg:#1c1c1c; --card:#fff; --line:#d8d8d8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181d; --fg:#e8e8e8; --card:#20232a; --line:#3a3f4a; }
+  }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+         font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  main { max-width:480px; margin:0 auto; }
+  section { background:var(--card); border:1px solid var(--line);
+            border-radius:10px; padding:16px; margin-bottom:16px; }
+  h2 { margin:0 0 12px; font-size:18px; }
+  input, textarea, button { width:100%; box-sizing:border-box; padding:10px;
+    margin-bottom:10px; font-size:16px; border-radius:6px;
+    border:1px solid var(--line); background:var(--bg); color:var(--fg); }
+  button { cursor:pointer; font-weight:600; }
+  #status, #result { white-space:pre-wrap; margin:0; }
+</style>
+</head>
+<body>
+<main>
+  <p id="status">正在创建匿名账户…</p>
+
+  <section>
+    <h2>写一封匿名信</h2>
+    <textarea id="content" rows="5" maxlength="2000" placeholder="信的内容"></textarea>
+    <input id="sendCode" inputmode="numeric" placeholder="数字码（6到12位数字）">
+    <input id="sendPass" inputmode="numeric" maxlength="4" placeholder="密码（最多4位数字）">
+    <button id="sendBtn">发布</button>
+  </section>

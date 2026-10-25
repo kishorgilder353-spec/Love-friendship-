@@ -31,12 +31,26 @@ input,textarea{width:100%;padding:10px;margin-bottom:10px;font:inherit;border:1p
 .btn:disabled{opacity:.5}
 .meta{display:flex;justify-content:space-between;color:var(--sub);font-size:13px}
 .body{white-space:pre-wrap;word-break:break-word;margin:6px 0}
-.rep{background:none;border:0;color:var(--sub);font-size:13px;padding:0}
+.rep{background:none;border:0;color:var(--sub);font-size:14px;padding:6px 0}
 .hint{color:var(--sub);font-size:13px;margin:0 0 10px}
 #gate{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
 #gate .card{max-width:340px;text-align:center}
-#sheet,#chat{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.45);overflow-y:auto;padding:24px 14px}
-#sheet .card,#chat .card{max-width:480px;margin:0 auto}
+#sheet{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.45);overflow-y:auto;padding:24px 14px}
+#sheet .card{max-width:480px;margin:0 auto}
+#page{position:fixed;inset:0;z-index:18;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+#page>div.top{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card)}
+#page .top button{border:0;background:none;color:var(--ac);font:inherit;font-size:17px;font-weight:600;padding:6px 8px}
+#page .top strong{font-size:17px}
+#pageBody{flex:1;display:flex;flex-direction:column;min-height:0;max-width:640px;width:100%;margin:0 auto}
+.scroll{flex:1;overflow-y:auto;padding:12px 14px}
+.composer{padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--card)}
+.acts{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.rep.on{color:#e0457b;font-weight:600}
+.cmbox{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.cm{margin:6px 0;font-size:14px}
+.cm .who{color:var(--sub);font-size:12px}
+.cmrow{display:flex;gap:8px;margin-top:8px}
+.cmrow input{margin:0;flex:1}
 .bub{max-width:80%;padding:8px 12px;border-radius:12px;margin:6px 0;white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--line)}
 .bub.me{margin-left:auto;background:var(--ac);color:var(--acfg);border-color:var(--ac)}
 #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:86%;padding:10px 16px;border-radius:8px;background:#222;color:#fff;font-size:14px;z-index:30}
@@ -45,6 +59,20 @@ h3{margin:14px 0 8px;font-size:16px}
 </head>
 <body>
 <div id="bg"></div>
+<script>
+(function(){
+  function show(t){
+    var b=document.getElementById("errBox");
+    if(!b){b=document.createElement("pre");b.id="errBox";
+      b.style.cssText="position:fixed;left:0;right:0;top:0;z-index:99;margin:0;padding:8px;background:#7b1e1e;color:#fff;font-size:12px;white-space:pre-wrap";
+      document.body.appendChild(b);}
+    b.textContent+=t+"\n";
+  }
+  window.addEventListener("error",function(e){show("错误："+(e.message||"未知")+(e.lineno?" 行"+e.lineno:""));});
+  window.addEventListener("unhandledrejection",function(e){show("错误："+((e.reason&&e.reason.message)||e.reason));});
+})();
+</script>
+
 
 <div id="gate">
   <div class="card">
@@ -55,6 +83,7 @@ h3{margin:14px 0 8px;font-size:16px}
     <input id="uPass0" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
     <button class="btn" id="bAuth">登录</button>
     <p class="hint" style="margin-top:10px">不需要邮箱。请牢记密码，忘记后无法找回。</p>
+    <p class="hint" id="ver">版本 v10 · 脚本未启动</p>
   </div>
 </div>
 
@@ -125,36 +154,75 @@ h3{margin:14px 0 8px;font-size:16px}
     <div id="mine"></div>
     <div id="adminBox" hidden>
       <h3>管理</h3>
-      <button class="btn" id="bAdmin">查看被举报的内容</button>
-      <button class="btn ghost" id="bAdminChats" style="margin-top:8px">审核私信</button>
-      <div id="adminOut" style="margin-top:10px"></div>
+      <button class="btn" id="bAdmin">进入管理页（举报、审核私信）</button>
     </div>
     <button class="btn ghost" id="bOut" style="margin-top:12px">退出登录</button>
     <button class="btn ghost" id="bClose" style="margin-top:12px">关闭</button>
   </div>
 </div>
-<div id="chat" hidden>
-  <div class="card">
-    <div class="meta" style="margin-bottom:8px"><strong id="chatTitle">私信</strong><button class="rep" id="chatBack" hidden>返回</button></div>
-    <p class="hint">提示：为防止违法内容，管理员可能会审核私信，请勿发送违法信息。</p>
-    <div id="chatList"></div>
-    <div id="chatMsgs" hidden>
-      <div id="msgs" style="max-height:50vh;overflow-y:auto"></div>
-      <textarea id="dmText" rows="2" maxlength="1000" placeholder="输入消息"></textarea>
-      <button class="btn" id="dmSend">发送</button>
-    </div>
-    <button class="btn ghost" id="chatClose" style="margin-top:12px">关闭</button>
-  </div>
+<div id="page" hidden>
+  <div class="top"><button id="pageBack">‹ 返回</button><strong id="pageTitle"></strong></div>
+  <div id="pageBody"></div>
 </div>
 <div id="toast" hidden></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
+function main(){
+document.getElementById("ver").textContent = "版本 v10 · 脚本已启动 ✓";
 const SUPABASE_URL = "https://wqyghhbrvzqvspcvruql.supabase.co";
 const SUPABASE_KEY = "sb_publishable_wJnImK4HELANkdrJs3OMEg_PA7psgpZ";
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { lock: async (name, timeout, fn) => await fn() }
-});
+// 不再依赖外部组件：直接和 Supabase 通信
+function makeClient(url, key){
+  const SK = "letters-session";
+  let sess = null;
+  try { sess = JSON.parse(localStorage.getItem(SK) || "null"); } catch {}
+  const save = (v) => { sess = v; try { v ? localStorage.setItem(SK, JSON.stringify(v)) : localStorage.removeItem(SK); } catch {} };
+  const norm = (j) => ({ access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Math.floor(Date.now() / 1000) + (j.expires_in || 3600), user: j.user });
+  const H = (t) => { const h = { "Content-Type": "application/json", apikey: key }; if (t) h.Authorization = "Bearer " + t; return h; };
+  const errOf = (j, st) => ({ message: (j && (j.msg || j.message || j.error_description || j.error)) || ("HTTP " + st) });
+  async function call(path, opts){
+    const r = await fetch(url + path, opts);
+    let j = null; try { j = await r.json(); } catch {}
+    return { ok: r.ok, status: r.status, j };
+  }
+  async function token(){
+    if (!sess) return null;
+    if (sess.expires_at - 30 < Date.now() / 1000){
+      const { ok, j } = await call("/auth/v1/token?grant_type=refresh_token", { method: "POST", headers: H(), body: JSON.stringify({ refresh_token: sess.refresh_token }) });
+      if (!ok){ save(null); return null; }
+      save(norm(j));
+    }
+    return sess.access_token;
+  }
+  async function sign(path, email, password){
+    const { ok, j, status } = await call(path, { method: "POST", headers: H(), body: JSON.stringify({ email, password }) });
+    if (!ok) return { error: errOf(j, status) };
+    if (!j.access_token) return { error: { message: "需要邮箱验证：请在 Supabase 关闭 Confirm email" } };
+    save(norm(j)); return { error: null };
+  }
+  return {
+    auth: {
+      async getSession(){ await token(); return { data: { session: sess } }; },
+      signUp: ({ email, password }) => sign("/auth/v1/signup", email, password),
+      signInWithPassword: ({ email, password }) => sign("/auth/v1/token?grant_type=password", email, password),
+      async signOut(){ if (sess) call("/auth/v1/logout", { method: "POST", headers: H(sess.access_token) }).catch(() => {}); save(null); return {}; }
+    },
+    async rpc(name, args){
+      const t = await token();
+      const { ok, j, status } = await call("/rest/v1/rpc/" + name, { method: "POST", headers: H(t), body: JSON.stringify(args || {}) });
+      return ok ? { data: j, error: null } : { data: null, error: errOf(j, status) };
+    },
+    from(table){
+      return { select: (cols) => ({ async order(col, o){
+        const t = await token();
+        const q = "?select=" + encodeURIComponent(cols) + "&order=" + col + "." + (o && o.ascending === false ? "desc" : "asc");
+        const { ok, j, status } = await call("/rest/v1/" + table + q, { headers: H(t) });
+        return ok ? { data: j, error: null } : { data: null, error: errOf(j, status) };
+      } }) };
+    }
+  };
+}
+const db = makeClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = (id) => document.getElementById(id);
 const store = {
   get(k){ try { return localStorage.getItem(k); } catch { return null; } },
@@ -210,35 +278,80 @@ function report(type, id){
 }
 
 let before = null;
+function postCard(r){
+  const c = el("div", "card");
+  const m = el("div", "meta");
+  m.append(el("span", "", r.nickname + (r.mine ? "（我）" : "")), el("span", "", fmt(r.created_at)));
+  c.append(m, el("div", "body", r.content));
+  const acts = el("div", "acts");
+  let liked = !!r.liked, likes = Number(r.likes || 0), cmN = Number(r.comments || 0);
+  const lk = el("button", "rep");
+  const paintLk = () => { lk.textContent = (liked ? "♥ " : "♡ ") + likes; lk.classList.toggle("on", liked); };
+  paintLk();
+  lk.onclick = async () => {
+    try { const t = (await rpc("toggle_like", { p_post: r.id }))[0]; liked = t.liked; likes = Number(t.cnt); paintLk(); }
+    catch (e) { toast(msgOf(e)); }
+  };
+  const cb = el("button", "rep");
+  const paintCb = () => { cb.textContent = "评论 " + cmN; };
+  paintCb();
+  const box = el("div", "cmbox"); box.hidden = true;
+  const list = el("div");
+  const inp = el("input"); inp.maxLength = 300; inp.placeholder = "写评论";
+  const sb = el("button", "chip", "发送");
+  const row = el("div", "cmrow"); row.append(inp, sb);
+  box.append(list, row);
+  async function loadCm(){
+    try {
+      const rows = await rpc("list_comments", { p_post: r.id });
+      list.textContent = "";
+      if (!rows.length) list.append(el("p", "hint", "还没有评论，来说第一句。"));
+      rows.forEach((x) => {
+        const d = el("div", "cm");
+        d.append(el("div", "who", x.nickname + (x.mine ? "（我）" : "") + " · " + fmt(x.created_at)), el("div", "body", x.content));
+        if (x.mine || isAdmin) {
+          const del = el("button", "rep", "删除");
+          del.onclick = async () => {
+            if (!confirm("确定删除这条评论吗？")) return;
+            try { await rpc("delete_comment", { p_id: x.id }); await loadCm(); } catch (e) { toast(msgOf(e)); }
+          };
+          d.append(del);
+        }
+        list.append(d);
+      });
+      cmN = rows.length; paintCb();
+    } catch (e) { toast(msgOf(e)); }
+  }
+  let loaded = false;
+  cb.onclick = () => { box.hidden = !box.hidden; if (!box.hidden && !loaded){ loaded = true; loadCm(); } };
+  run(sb, async () => { await rpc("add_comment", { p_post: r.id, p_content: inp.value }); inp.value = ""; await loadCm(); });
+  acts.append(lk, cb);
+  if (!r.mine) {
+    const dm = el("button", "rep", "私信");
+    dm.onclick = async () => {
+      try { openChat(await rpc("start_dm", { p_post_id: r.id }), r.nickname); } catch (e) { toast(msgOf(e)); }
+    };
+    acts.append(dm);
+  }
+  const rep = el("button", "rep", "举报"); rep.onclick = () => report("post", r.id);
+  acts.append(rep);
+  if (r.mine || isAdmin) {
+    const del = el("button", "rep", "删除");
+    del.onclick = () => {
+      if (!confirm("确定删除这条帖子吗？")) return;
+      rpc(r.mine ? "delete_my_post" : "admin_delete", r.mine ? { p_id: r.id } : { p_type: "post", p_id: r.id })
+        .then(() => c.remove()).catch((e) => toast(msgOf(e)));
+    };
+    acts.append(del);
+  }
+  c.append(acts, box);
+  return c;
+}
 async function loadPosts(reset){
   if (reset){ $("feed").textContent = ""; before = null; }
   try {
-    const rows = await rpc("list_posts", { p_limit: 20, p_before: before });
-    rows.forEach((r) => {
-      const c = el("div", "card");
-      const m = el("div", "meta");
-      m.append(el("span", "", r.nickname + (r.mine ? "（我）" : "")), el("span", "", fmt(r.created_at)));
-      const rep = el("button", "rep", "举报"); rep.onclick = () => report("post", r.id);
-      c.append(m, el("div", "body", r.content), rep);
-      if (!r.mine) {
-        const dm = el("button", "rep", "　私信");
-        dm.onclick = async () => {
-          try { openChat(await rpc("start_dm", { p_post_id: r.id }), r.nickname); } catch (e) { toast(msgOf(e)); }
-        };
-        c.append(dm);
-      }
-      if (r.mine || isAdmin) {
-        const del = el("button", "rep", "　删除");
-        del.onclick = () => {
-          if (!confirm("确定删除这条帖子吗？")) return;
-          rpc(r.mine ? "delete_my_post" : "admin_delete", r.mine ? { p_id: r.id } : { p_type: "post", p_id: r.id })
-            .then(() => c.remove()).catch((e) => toast(msgOf(e)));
-        };
-        c.append(del);
-      }
-      $("feed").append(c);
-      before = r.created_at;
-    });
+    const rows = await rpc("list_posts2", { p_limit: 20, p_before: before });
+    rows.forEach((r) => { $("feed").append(postCard(r)); before = r.created_at; });
     $("more").hidden = rows.length < 20;
     if (reset && !rows.length) $("feed").append(el("p", "hint", "还没有帖子，去发布第一条吧。"));
   } catch (e) { toast(msgOf(e)); }
@@ -328,7 +441,7 @@ async function enter(){
   $("who").textContent = "账号：" + (p.username || "（旧账号）");
   $("nick").value = p.nickname; applyTheme(p.theme);
   $("adminBox").hidden = !isAdmin;
-  $("gate").hidden = true; loadPosts(true);
+  $("gate").hidden = true; loadPosts(true); refreshBadge();
 }
 
 run($("bAuth"), async () => {
@@ -349,64 +462,159 @@ run($("bAuth"), async () => {
 
 $("bOut").onclick = async () => { await db.auth.signOut(); location.reload(); };
 
-run($("bAdmin"), async () => {
-  const rows = await rpc("admin_reports");
-  const box = $("adminOut"); box.textContent = "";
-  if (!rows.length) box.append(el("p", "hint", "没有被举报的内容。"));
-  rows.forEach((r) => {
-    const c = el("div", "card");
-    const m = el("div", "meta");
-    m.append(el("span", "", (r.target_type === "post" ? "帖子" : "公开信") + " · " + r.cnt + " 人举报"), el("span", "", r.hidden ? "已隐藏" : "显示中"));
-    c.append(m, el("div", "body", r.content || "（已删除）"));
-    const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap";
-    const mk = (t, fn) => {
-      const b = el("button", "chip ghost", t);
-      b.onclick = async () => { try { await fn(); toast("已完成"); } catch (e) { toast(msgOf(e)); } };
-      return b;
-    };
-    row.append(
-      mk(r.hidden ? "取消隐藏" : "隐藏", () => rpc("admin_set_hidden", { p_type: r.target_type, p_id: r.target_id, p_hidden: !r.hidden })),
-      mk("删除", () => rpc("admin_delete", { p_type: r.target_type, p_id: r.target_id }).then(() => c.remove())),
-      mk("封号", () => rpc("admin_ban", { p_user: r.author_id, p_with_ip: false })),
-      mk("封号+IP", () => rpc("admin_ban", { p_user: r.author_id, p_with_ip: true }))
-    );
-    c.append(row); box.append(c);
-  });
-});
+// ===== 独立页面（私信、管理）：有返回键，手机返回手势也能用 =====
+const pageStack = []; let histOK = true;
+function showPage(){
+  const p = pageStack[pageStack.length - 1];
+  if (!p){ $("page").hidden = true; refreshBadge(); return; }
+  $("page").hidden = false; $("pageTitle").textContent = p.title;
+  const body = $("pageBody"); body.textContent = "";
+  p.tick = p.render(body) || null;
+}
+function pushPage(title, render){
+  pageStack.push({ title, render });
+  try { history.pushState({ pg: pageStack.length }, ""); } catch (e) { histOK = false; }
+  showPage();
+}
+function popPage(){ pageStack.pop(); showPage(); }
+function backPage(){ if (histOK) history.back(); else popPage(); }
+window.addEventListener("popstate", () => { if (histOK && pageStack.length) popPage(); });
+$("pageBack").onclick = backPage;
+setInterval(() => { const p = pageStack[pageStack.length - 1]; if (p && p.tick) p.tick(); }, 5000);
+function scroller(body){ const s = el("div", "scroll"); body.append(s); return s; }
 
-let curConv = null;
-function chatView(list){ $("chatList").hidden = !list; $("chatMsgs").hidden = list; $("chatBack").hidden = list; }
-async function openInbox(){
-  $("chat").hidden = false; $("chatTitle").textContent = "私信"; chatView(true);
-  const box = $("chatList"); box.textContent = "";
+async function refreshBadge(){
   try {
     const rows = await rpc("my_conversations");
-    if (!rows.length) box.append(el("p", "hint", "还没有私信。在主页帖子下点“私信”就能开始聊天。"));
+    const n = rows.reduce((a, r) => a + Number(r.unread || 0), 0);
+    $("dm").textContent = n ? "私信 (" + n + ")" : "私信";
+  } catch (e) {}
+}
+setInterval(() => { if ($("gate").hidden && !pageStack.length) refreshBadge(); }, 20000);
+
+function renderInbox(body){
+  const sc = scroller(body);
+  sc.append(el("p", "hint", "提示：为防止违法内容，管理员可能会审核私信，请勿发送违法信息。"));
+  rpc("my_conversations").then((rows) => {
+    if (!rows.length) sc.append(el("p", "hint", "还没有私信。在主页帖子下点“私信”就能开始聊天。"));
     rows.forEach((r) => {
       const c = el("div", "card"); c.style.cursor = "pointer";
       const m = el("div", "meta");
       m.append(el("strong", "", r.peer), el("span", "", r.unread > 0 ? r.unread + " 条未读" : (r.last_at ? fmt(r.last_at) : "")));
       c.append(m, el("div", "body", r.last_msg || "（还没有消息）"));
       c.onclick = () => openChat(r.conv_id, r.peer);
-      box.append(c);
+      sc.append(c);
     });
-  } catch (e) { toast(msgOf(e)); }
+  }).catch((e) => toast(msgOf(e)));
 }
-async function openChat(id, peer){
-  curConv = id; $("chat").hidden = false; $("chatTitle").textContent = peer; chatView(false);
-  await loadMsgs();
+function openChat(id, peer){ pushPage(peer, (body) => renderChat(body, id)); }
+function renderChat(body, id){
+  const sc = scroller(body);
+  const bar = el("div", "composer");
+  const ta = el("textarea"); ta.rows = 2; ta.maxLength = 1000; ta.placeholder = "输入消息";
+  const send = el("button", "btn", "发送");
+  bar.append(ta, send); body.append(bar);
+  let first = true;
+  async function load(){
+    try {
+      const rows = await rpc("get_messages", { p_conv: id });
+      const atBottom = first || sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80;
+      sc.textContent = "";
+      rows.forEach((r) => sc.append(el("div", "bub" + (r.mine ? " me" : ""), r.content)));
+      if (atBottom) sc.scrollTop = sc.scrollHeight;
+      first = false;
+    } catch (e) { if (first) toast(msgOf(e)); }
+  }
+  run(send, async () => {
+    await rpc("send_dm", { p_conv: id, p_content: ta.value });
+    ta.value = ""; first = true; await load();
+  });
+  load();
+  return load;
 }
-async function loadMsgs(){
+$("dm").onclick = () => pushPage("私信", renderInbox);
+
+function adminPage(){
+  pushPage("管理", (body) => {
+    const sc = scroller(body);
+    const b1 = el("button", "btn", "被举报的内容");
+    const b2 = el("button", "btn ghost", "审核私信"); b2.style.marginTop = "8px";
+    b1.onclick = () => pushPage("被举报的内容", renderReports);
+    b2.onclick = () => pushPage("审核私信", renderAdminChats);
+    sc.append(b1, b2);
+  });
+}
+$("bAdmin").onclick = adminPage;
+
+function renderReports(body){
+  const sc = scroller(body);
+  rpc("admin_reports").then((rows) => {
+    if (!rows.length) sc.append(el("p", "hint", "没有被举报的内容。"));
+    rows.forEach((r) => {
+      const c = el("div", "card");
+      const m = el("div", "meta");
+      m.append(el("span", "", (r.target_type === "post" ? "帖子" : "公开信") + " · " + r.cnt + " 人举报"), el("span", "", r.hidden ? "已隐藏" : "显示中"));
+      c.append(m, el("div", "body", r.content || "（已删除）"));
+      const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap";
+      const mk = (t, fn) => {
+        const b = el("button", "chip ghost", t);
+        b.onclick = async () => { try { await fn(); toast("已完成"); } catch (e) { toast(msgOf(e)); } };
+        return b;
+      };
+      row.append(
+        mk(r.hidden ? "取消隐藏" : "隐藏", () => rpc("admin_set_hidden", { p_type: r.target_type, p_id: r.target_id, p_hidden: !r.hidden })),
+        mk("删除", () => rpc("admin_delete", { p_type: r.target_type, p_id: r.target_id }).then(() => c.remove())),
+        mk("封号", () => rpc("admin_ban", { p_user: r.author_id, p_with_ip: false })),
+        mk("封号+IP", () => rpc("admin_ban", { p_user: r.author_id, p_with_ip: true }))
+      );
+      c.append(row); sc.append(c);
+    });
+  }).catch((e) => toast(msgOf(e)));
+}
+function renderAdminChats(body){
+  const sc = scroller(body);
+  rpc("admin_conversations").then((rows) => {
+    if (!rows.length) sc.append(el("p", "hint", "还没有私信记录。"));
+    rows.forEach((r) => {
+      const c = el("div", "card"); c.style.cursor = "pointer";
+      const t = r.name_a + " ⇄ " + r.name_b;
+      const m = el("div", "meta"); m.append(el("strong", "", t), el("span", "", r.cnt + " 条 · " + fmt(r.last_at)));
+      c.append(m, el("div", "body", r.last_msg));
+      c.onclick = () => pushPage(t, (b) => renderAdminThread(b, r.conv_id));
+      sc.append(c);
+    });
+  }).catch((e) => toast(msgOf(e)));
+}
+function renderAdminThread(body, id){
+  const sc = scroller(body);
+  rpc("admin_messages", { p_conv: id }).then((rows) => {
+    rows.forEach((r) => {
+      const c = el("div", "card");
+      const m = el("div", "meta"); m.append(el("span", "", r.sender), el("span", "", fmt(r.created_at)));
+      c.append(m, el("div", "body", r.content));
+      const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap";
+      [["禁言", false], ["禁言+封IP", true]].forEach(([t, ip]) => {
+        const b = el("button", "chip ghost", t);
+        b.onclick = async () => {
+          try { await rpc("admin_ban_chat", { p_user: r.sender_id, p_with_ip: ip }); toast("已处理"); } catch (e) { toast(msgOf(e)); }
+        };
+        row.append(b);
+      });
+      c.append(row); sc.append(c);
+    });
+  }).catch((e) => toast(msgOf(e)));
+}
+
+(async function boot(){
   try {
-    const rows = await rpc("get_messages", { p_conv: curConv });
-    const box = $("msgs"); box.textContent = "";
-    rows.forEach((r) => box.append(el("div", "bub" + (r.mine ? " me" : ""), r.content)));
-    box.scrollTop = box.scrollHeight;
-  } catch (e) { toast(msgOf(e)); }
+    const { data } = await timeout(db.auth.getSession(), 8000);
+    const s = data.session;
+    if (s && !s.user.is_anonymous) await enter();
+    else if (s) await db.auth.signOut();
+  } catch (e) { toast("启动失败：" + e.message); }
+})();
 }
-$("dm").onclick = openInbox;
-$("chatBack").onclick = openInbox;
-$("chatClose").onclick = () => $("chat").hidden = true;
-run($("dmSend"), async () => {
-  await rpc("send_dm", { p_conv: curConv, p_content: $("dmText").value });
-  $("dmText").valu
+</script>
+<script>main();</script>
+</body>
+</html>

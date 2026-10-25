@@ -48,7 +48,11 @@ h3{margin:14px 0 8px;font-size:16px}
   <div class="card">
     <h2>匿名信</h2>
     <p class="hint">为防止滥用，我们会记录访问的 IP 地址，仅用于封禁恶意刷信的行为。</p>
-    <button class="btn" id="human">我是真人，进入</button>
+    <div class="seg" id="segAuth"><button class="on" data-t="in">登录</button><button data-t="up">注册</button></div>
+    <input id="uName0" maxlength="16" placeholder="用户名（2到16位，中文字母数字下划线）" autocomplete="username">
+    <input id="uPass0" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+    <button class="btn" id="bAuth">登录</button>
+    <p class="hint" style="margin-top:10px">不需要邮箱。请牢记密码，忘记后无法找回。</p>
   </div>
 </div>
 
@@ -106,6 +110,7 @@ h3{margin:14px 0 8px;font-size:16px}
 
 <div id="sheet" hidden>
   <div class="card">
+    <p class="hint" id="who"></p>
     <h3 style="margin-top:0">昵称</h3>
     <input id="nick" maxlength="20">
     <button class="btn" id="bNick">保存昵称</button>
@@ -116,6 +121,12 @@ h3{margin:14px 0 8px;font-size:16px}
     <p class="hint">背景图只保存在这台设备的浏览器里。</p>
     <h3>我发的匿名信</h3>
     <div id="mine"></div>
+    <div id="adminBox" hidden>
+      <h3>管理</h3>
+      <button class="btn" id="bAdmin">查看被举报的内容</button>
+      <div id="adminOut" style="margin-top:10px"></div>
+    </div>
+    <button class="btn ghost" id="bOut" style="margin-top:12px">退出登录</button>
     <button class="btn ghost" id="bClose" style="margin-top:12px">关闭</button>
   </div>
 </div>
@@ -139,7 +150,12 @@ const ERR = {
   "too many requests": "操作太频繁，请稍后再试",
   "banned": "你的账号或网络已被限制",
   "invalid code or password": "数字码需 6 到 12 位数字，密码需 1 到 4 位数字",
-  "not logged in": "还没有登录成功，请刷新页面"
+  "not logged in": "还没有登录成功，请刷新页面",
+  "Invalid login credentials": "用户名或密码不对",
+  "already registered": "这个用户名已被注册",
+  "username taken": "这个用户名已被注册",
+  "invalid username": "用户名需 2 到 16 位，只能是中文、字母、数字、下划线",
+  "forbidden": "没有权限"
 };
 const msgOf = (e) => { const m = (e && e.message) || ""; for (const k in ERR) if (m.includes(k)) return ERR[k]; return "出错了：" + m; };
 let tt;
@@ -185,6 +201,15 @@ async function loadPosts(reset){
       m.append(el("span", "", r.nickname + (r.mine ? "（我）" : "")), el("span", "", fmt(r.created_at)));
       const rep = el("button", "rep", "举报"); rep.onclick = () => report("post", r.id);
       c.append(m, el("div", "body", r.content), rep);
+      if (r.mine || isAdmin) {
+        const del = el("button", "rep", "　删除");
+        del.onclick = () => {
+          if (!confirm("确定删除这条帖子吗？")) return;
+          rpc(r.mine ? "delete_my_post" : "admin_delete", r.mine ? { p_id: r.id } : { p_type: "post", p_id: r.id })
+            .then(() => c.remove()).catch((e) => toast(msgOf(e)));
+        };
+        c.append(del);
+      }
       $("feed").append(c);
       before = r.created_at;
     });
@@ -255,21 +280,82 @@ $("bgFile").onchange = (ev) => {
 };
 
 const timeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error("连接超时，请检查网络或 VPN")), ms))]);
-async function start(){
+
+// 用户名不是真邮箱：把它变成一个看不见的假邮箱交给 Supabase。若注册提示邮箱无效，改这个后缀。
+const FAKE_DOMAIN = "gmail.com";
+async function fakeEmail(name){
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("letters:" + name.trim().toLowerCase()));
+  const hex = [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return "u" + hex.slice(0, 40) + "@" + FAKE_DOMAIN;
+}
+
+let mode = "in", isAdmin = false;
+document.querySelectorAll("#segAuth button").forEach((b) => b.onclick = () => {
+  mode = b.dataset.t;
+  document.querySelectorAll("#segAuth button").forEach((x) => x.classList.toggle("on", x === b));
+  $("bAuth").textContent = mode === "in" ? "登录" : "注册并进入";
+});
+
+async function enter(){
+  const p = (await rpc("me"))[0];
+  isAdmin = p.admin;
+  $("who").textContent = "账号：" + (p.username || "（旧账号）");
+  $("nick").value = p.nickname; applyTheme(p.theme);
+  $("adminBox").hidden = !isAdmin;
+  $("gate").hidden = true; loadPosts(true);
+}
+
+run($("bAuth"), async () => {
+  const name = $("uName0").value.trim(), pass = $("uPass0").value;
+  if (!/^[A-Za-z0-9_\u4e00-\u9fa5]{2,16}$/.test(name)) throw new Error("invalid username");
+  if (pass.length < 6) throw new Error("密码至少 6 位");
+  const email = await fakeEmail(name);
+  if (mode === "up"){
+    const { error } = await timeout(db.auth.signUp({ email, password: pass }), 10000);
+    if (error) throw error;
+    await rpc("register_profile", { p_username: name });
+  } else {
+    const { error } = await timeout(db.auth.signInWithPassword({ email, password: pass }), 10000);
+    if (error) throw error;
+  }
+  await enter();
+});
+
+$("bOut").onclick = async () => { await db.auth.signOut(); location.reload(); };
+
+run($("bAdmin"), async () => {
+  const rows = await rpc("admin_reports");
+  const box = $("adminOut"); box.textContent = "";
+  if (!rows.length) box.append(el("p", "hint", "没有被举报的内容。"));
+  rows.forEach((r) => {
+    const c = el("div", "card");
+    const m = el("div", "meta");
+    m.append(el("span", "", (r.target_type === "post" ? "帖子" : "公开信") + " · " + r.cnt + " 人举报"), el("span", "", r.hidden ? "已隐藏" : "显示中"));
+    c.append(m, el("div", "body", r.content || "（已删除）"));
+    const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap";
+    const mk = (t, fn) => {
+      const b = el("button", "chip ghost", t);
+      b.onclick = async () => { try { await fn(); toast("已完成"); } catch (e) { toast(msgOf(e)); } };
+      return b;
+    };
+    row.append(
+      mk(r.hidden ? "取消隐藏" : "隐藏", () => rpc("admin_set_hidden", { p_type: r.target_type, p_id: r.target_id, p_hidden: !r.hidden })),
+      mk("删除", () => rpc("admin_delete", { p_type: r.target_type, p_id: r.target_id }).then(() => c.remove())),
+      mk("封号", () => rpc("admin_ban", { p_user: r.author_id, p_with_ip: false })),
+      mk("封号+IP", () => rpc("admin_ban", { p_user: r.author_id, p_with_ip: true }))
+    );
+    c.append(row); box.append(c);
+  });
+});
+
+(async function boot(){
   try {
     const { data } = await timeout(db.auth.getSession(), 8000);
-    if (!data.session){
-      const { error } = await timeout(db.auth.signInAnonymously(), 10000);
-      if (error) throw error;
-    }
-    const p = (await rpc("my_profile"))[0];
-    $("nick").value = p.nickname; applyTheme(p.theme);
-    loadPosts(true);
+    const s = data.session;
+    if (s && !s.user.is_anonymous) await enter();
+    else if (s) await db.auth.signOut();
   } catch (e) { toast("启动失败：" + e.message); }
-}
-function enter(){ $("gate").hidden = true; start(); }
-$("human").onclick = () => { store.set("human", "1"); enter(); };
-if (store.get("human") === "1") enter();
+})();
 </script>
 </body>
 </html>

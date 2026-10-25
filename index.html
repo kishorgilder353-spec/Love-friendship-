@@ -35,8 +35,10 @@ input,textarea{width:100%;padding:10px;margin-bottom:10px;font:inherit;border:1p
 .hint{color:var(--sub);font-size:13px;margin:0 0 10px}
 #gate{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
 #gate .card{max-width:340px;text-align:center}
-#sheet{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.45);overflow-y:auto;padding:24px 14px}
-#sheet .card{max-width:480px;margin:0 auto}
+#sheet,#chat{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.45);overflow-y:auto;padding:24px 14px}
+#sheet .card,#chat .card{max-width:480px;margin:0 auto}
+.bub{max-width:80%;padding:8px 12px;border-radius:12px;margin:6px 0;white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--line)}
+.bub.me{margin-left:auto;background:var(--ac);color:var(--acfg);border-color:var(--ac)}
 #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:86%;padding:10px 16px;border-radius:8px;background:#222;color:#fff;font-size:14px;z-index:30}
 h3{margin:14px 0 8px;font-size:16px}
 </style>
@@ -47,7 +49,7 @@ h3{margin:14px 0 8px;font-size:16px}
 <div id="gate">
   <div class="card">
     <h2>匿名信</h2>
-    <p class="hint">为防止滥用，我们会记录访问的 IP 地址，仅用于封禁恶意刷信的行为。</p>
+    <p class="hint">为防止滥用，我们会记录访问的 IP 地址，仅用于封禁恶意刷信的行为。私信内容可能会被管理员审核。</p>
     <div class="seg" id="segAuth"><button class="on" data-t="in">登录</button><button data-t="up">注册</button></div>
     <input id="uName0" maxlength="16" placeholder="用户名（2到16位，中文字母数字下划线）" autocomplete="username">
     <input id="uPass0" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
@@ -57,7 +59,7 @@ h3{margin:14px 0 8px;font-size:16px}
 </div>
 
 <div id="app">
-  <header><h1>匿名信</h1><button class="chip ghost" id="me">我</button></header>
+  <header><h1>匿名信</h1><div><button class="chip ghost" id="dm">私信</button> <button class="chip ghost" id="me">我</button></div></header>
   <main>
     <section id="v-home">
       <div id="feed"></div>
@@ -124,10 +126,24 @@ h3{margin:14px 0 8px;font-size:16px}
     <div id="adminBox" hidden>
       <h3>管理</h3>
       <button class="btn" id="bAdmin">查看被举报的内容</button>
+      <button class="btn ghost" id="bAdminChats" style="margin-top:8px">审核私信</button>
       <div id="adminOut" style="margin-top:10px"></div>
     </div>
     <button class="btn ghost" id="bOut" style="margin-top:12px">退出登录</button>
     <button class="btn ghost" id="bClose" style="margin-top:12px">关闭</button>
+  </div>
+</div>
+<div id="chat" hidden>
+  <div class="card">
+    <div class="meta" style="margin-bottom:8px"><strong id="chatTitle">私信</strong><button class="rep" id="chatBack" hidden>返回</button></div>
+    <p class="hint">提示：为防止违法内容，管理员可能会审核私信，请勿发送违法信息。</p>
+    <div id="chatList"></div>
+    <div id="chatMsgs" hidden>
+      <div id="msgs" style="max-height:50vh;overflow-y:auto"></div>
+      <textarea id="dmText" rows="2" maxlength="1000" placeholder="输入消息"></textarea>
+      <button class="btn" id="dmSend">发送</button>
+    </div>
+    <button class="btn ghost" id="chatClose" style="margin-top:12px">关闭</button>
   </div>
 </div>
 <div id="toast" hidden></div>
@@ -155,7 +171,10 @@ const ERR = {
   "already registered": "这个用户名已被注册",
   "username taken": "这个用户名已被注册",
   "invalid username": "用户名需 2 到 16 位，只能是中文、字母、数字、下划线",
-  "forbidden": "没有权限"
+  "forbidden": "没有权限",
+  "chat banned": "你已被禁止发送私信",
+  "cannot message yourself": "不能给自己发私信",
+  "not found": "找不到这条帖子"
 };
 const msgOf = (e) => { const m = (e && e.message) || ""; for (const k in ERR) if (m.includes(k)) return ERR[k]; return "出错了：" + m; };
 let tt;
@@ -201,6 +220,13 @@ async function loadPosts(reset){
       m.append(el("span", "", r.nickname + (r.mine ? "（我）" : "")), el("span", "", fmt(r.created_at)));
       const rep = el("button", "rep", "举报"); rep.onclick = () => report("post", r.id);
       c.append(m, el("div", "body", r.content), rep);
+      if (!r.mine) {
+        const dm = el("button", "rep", "　私信");
+        dm.onclick = async () => {
+          try { openChat(await rpc("start_dm", { p_post_id: r.id }), r.nickname); } catch (e) { toast(msgOf(e)); }
+        };
+        c.append(dm);
+      }
       if (r.mine || isAdmin) {
         const del = el("button", "rep", "　删除");
         del.onclick = () => {
@@ -348,14 +374,39 @@ run($("bAdmin"), async () => {
   });
 });
 
-(async function boot(){
+let curConv = null;
+function chatView(list){ $("chatList").hidden = !list; $("chatMsgs").hidden = list; $("chatBack").hidden = list; }
+async function openInbox(){
+  $("chat").hidden = false; $("chatTitle").textContent = "私信"; chatView(true);
+  const box = $("chatList"); box.textContent = "";
   try {
-    const { data } = await timeout(db.auth.getSession(), 8000);
-    const s = data.session;
-    if (s && !s.user.is_anonymous) await enter();
-    else if (s) await db.auth.signOut();
-  } catch (e) { toast("启动失败：" + e.message); }
-})();
-</script>
-</body>
-</html>
+    const rows = await rpc("my_conversations");
+    if (!rows.length) box.append(el("p", "hint", "还没有私信。在主页帖子下点“私信”就能开始聊天。"));
+    rows.forEach((r) => {
+      const c = el("div", "card"); c.style.cursor = "pointer";
+      const m = el("div", "meta");
+      m.append(el("strong", "", r.peer), el("span", "", r.unread > 0 ? r.unread + " 条未读" : (r.last_at ? fmt(r.last_at) : "")));
+      c.append(m, el("div", "body", r.last_msg || "（还没有消息）"));
+      c.onclick = () => openChat(r.conv_id, r.peer);
+      box.append(c);
+    });
+  } catch (e) { toast(msgOf(e)); }
+}
+async function openChat(id, peer){
+  curConv = id; $("chat").hidden = false; $("chatTitle").textContent = peer; chatView(false);
+  await loadMsgs();
+}
+async function loadMsgs(){
+  try {
+    const rows = await rpc("get_messages", { p_conv: curConv });
+    const box = $("msgs"); box.textContent = "";
+    rows.forEach((r) => box.append(el("div", "bub" + (r.mine ? " me" : ""), r.content)));
+    box.scrollTop = box.scrollHeight;
+  } catch (e) { toast(msgOf(e)); }
+}
+$("dm").onclick = openInbox;
+$("chatBack").onclick = openInbox;
+$("chatClose").onclick = () => $("chat").hidden = true;
+run($("dmSend"), async () => {
+  await rpc("send_dm", { p_conv: curConv, p_content: $("dmText").value });
+  $("dmText").valu

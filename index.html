@@ -44,6 +44,8 @@ input,textarea{width:100%;padding:10px;margin-bottom:10px;font:inherit;border:1p
 #pageBody{flex:1;display:flex;flex-direction:column;min-height:0;max-width:640px;width:100%;margin:0 auto}
 .scroll{flex:1;overflow-y:auto;padding:12px 14px}
 .composer{padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--card)}
+.pic{margin-top:8px;border-radius:10px;overflow:hidden;background:rgba(128,128,128,.15);min-height:60px;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:13px}
+.pic img{display:block;width:100%;max-height:420px;object-fit:cover;cursor:pointer}
 .acts{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
 .rep.on{color:#e0457b;font-weight:600}
 .cmbox{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
@@ -77,13 +79,13 @@ h3{margin:14px 0 8px;font-size:16px}
 <div id="gate">
   <div class="card">
     <h2>匿名信</h2>
-    <p class="hint">为防止滥用，我们会记录访问的 IP 地址，仅用于封禁恶意刷信的行为。私信内容可能会被管理员审核。</p>
+    <p class="hint">为防止滥用，我们会记录访问的 IP 地址，仅用于封禁恶意行为，管理员可以查看。私信内容可能会被管理员审核。</p>
     <div class="seg" id="segAuth"><button class="on" data-t="in">登录</button><button data-t="up">注册</button></div>
     <input id="uName0" maxlength="16" placeholder="用户名（2到16位，中文字母数字下划线）" autocomplete="username">
     <input id="uPass0" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
     <button class="btn" id="bAuth">登录</button>
     <p class="hint" style="margin-top:10px">不需要邮箱。请牢记密码，忘记后无法找回。</p>
-    <p class="hint" id="ver">版本 v10 · 脚本未启动</p>
+    <p class="hint" id="ver">版本 v12 · 脚本未启动</p>
   </div>
 </div>
 
@@ -99,6 +101,9 @@ h3{margin:14px 0 8px;font-size:16px}
       <div class="seg" id="segPub"><button class="on" data-t="post">帖子</button><button data-t="anon">匿名信</button><button data-t="pub">公开信</button></div>
       <div class="card" data-p="post">
         <textarea id="pPost" rows="6" maxlength="1000" placeholder="说点什么，所有人可见"></textarea>
+        <input type="file" id="pImg" accept="image/*" hidden>
+        <button class="btn ghost" id="bImg" style="margin-bottom:8px">＋ 添加图片（需管理员审核）</button>
+        <div id="imgPrev" hidden style="margin-bottom:10px"><img id="imgPrevImg" style="max-width:100%;max-height:260px;border-radius:10px;display:block"><button class="btn ghost" id="bImgDel" style="margin-top:6px">移除图片</button></div>
         <button class="btn" id="bPost">发布帖子</button>
       </div>
       <div class="card" data-p="anon" hidden>
@@ -168,7 +173,7 @@ h3{margin:14px 0 8px;font-size:16px}
 
 <script>
 function main(){
-document.getElementById("ver").textContent = "版本 v10 · 脚本已启动 ✓";
+document.getElementById("ver").textContent = "版本 v12 · 脚本已启动 ✓";
 const SUPABASE_URL = "https://wqyghhbrvzqvspcvruql.supabase.co";
 const SUPABASE_KEY = "sb_publishable_wJnImK4HELANkdrJs3OMEg_PA7psgpZ";
 // 不再依赖外部组件：直接和 Supabase 通信
@@ -242,7 +247,8 @@ const ERR = {
   "forbidden": "没有权限",
   "chat banned": "你已被禁止发送私信",
   "cannot message yourself": "不能给自己发私信",
-  "not found": "找不到这条帖子"
+  "not found": "找不到这条帖子",
+  "bad image": "图片格式不对或太大"
 };
 const msgOf = (e) => { const m = (e && e.message) || ""; for (const k in ERR) if (m.includes(k)) return ERR[k]; return "出错了：" + m; };
 let tt;
@@ -278,11 +284,37 @@ function report(type, id){
 }
 
 let before = null;
+const imgCache = new Map();
+function getImage(id){
+  if (!imgCache.has(id)) imgCache.set(id, rpc("get_image", { p_id: id }).catch((e) => { imgCache.delete(id); throw e; }));
+  return imgCache.get(id);
+}
+const io = ("IntersectionObserver" in window) ? new IntersectionObserver((es) => {
+  es.forEach((e) => { if (e.isIntersecting){ io.unobserve(e.target); e.target._load(); } });
+}, { rootMargin: "300px" }) : null;
+function imageBlock(id, status){
+  const w = el("div");
+  const box = el("div", "pic", "图片加载中…");
+  w._load = async () => {
+    try {
+      const data = await getImage(id);
+      box.textContent = "";
+      const im = el("img"); im.src = data; im.alt = "图片";
+      im.onclick = () => pushPage("图片", (body) => { const sc = scroller(body); const big = el("img"); big.src = data; big.style.cssText = "width:100%;border-radius:10px"; sc.append(big); });
+      box.append(im);
+    } catch (e) { box.textContent = "图片加载失败"; }
+  };
+  w.append(box);
+  if (status === "pending") { const t = el("p", "hint", "审核中：现在只有你和管理员能看到这张图。"); t.style.margin = "4px 0 0"; w.append(t); }
+  if (io) { io.observe(w); } else w._load();
+  return w;
+}
 function postCard(r){
   const c = el("div", "card");
   const m = el("div", "meta");
   m.append(el("span", "", r.nickname + (r.mine ? "（我）" : "")), el("span", "", fmt(r.created_at)));
   c.append(m, el("div", "body", r.content));
+  if (r.image_id) c.append(imageBlock(r.image_id, r.image_status));
   const acts = el("div", "acts");
   let liked = !!r.liked, likes = Number(r.likes || 0), cmN = Number(r.comments || 0);
   const lk = el("button", "rep");
@@ -333,6 +365,11 @@ function postCard(r){
     };
     acts.append(dm);
   }
+  if (isAdmin) {
+    const who = el("button", "rep", "查看作者");
+    who.onclick = () => pushPage("作者信息", (body) => renderAuthor(body, r.id));
+    acts.append(who);
+  }
   const rep = el("button", "rep", "举报"); rep.onclick = () => report("post", r.id);
   acts.append(rep);
   if (r.mine || isAdmin) {
@@ -350,7 +387,7 @@ function postCard(r){
 async function loadPosts(reset){
   if (reset){ $("feed").textContent = ""; before = null; }
   try {
-    const rows = await rpc("list_posts2", { p_limit: 20, p_before: before });
+    const rows = await rpc("list_posts3", { p_limit: 20, p_before: before });
     rows.forEach((r) => { $("feed").append(postCard(r)); before = r.created_at; });
     $("more").hidden = rows.length < 20;
     if (reset && !rows.length) $("feed").append(el("p", "hint", "还没有帖子，去发布第一条吧。"));
@@ -358,7 +395,37 @@ async function loadPosts(reset){
 }
 $("more").onclick = () => loadPosts(false);
 
+let pendingImg = null;
+function compressImage(file){
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, 1024 / Math.max(img.width, img.height));
+      const w = Math.round(img.width * k), h = Math.round(img.height * k);
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+      const cx = cv.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0, 0, w, h); cx.drawImage(img, 0, 0, w, h);
+      let q = 0.75, out = cv.toDataURL("image/jpeg", q);
+      while (out.length > 360000 && q > 0.3){ q -= 0.1; out = cv.toDataURL("image/jpeg", q); }
+      if (out.length > 380000) rej(new Error("图片太大")); else res(out);
+    };
+    img.onerror = () => rej(new Error("读不了这张图片"));
+    img.src = url;
+  });
+}
+function clearImg(){ pendingImg = null; $("imgPrev").hidden = true; $("pImg").value = ""; $("bImg").hidden = false; }
+$("bImg").onclick = () => $("pImg").click();
+$("bImgDel").onclick = clearImg;
+$("pImg").onchange = async () => {
+  const f = $("pImg").files[0]; if (!f) return;
+  try { pendingImg = await compressImage(f); $("imgPrevImg").src = pendingImg; $("imgPrev").hidden = false; $("bImg").hidden = true; }
+  catch (e) { toast(e.message); clearImg(); }
+};
 run($("bPost"), async () => {
+  if (pendingImg) {
+    await rpc("create_post_img", { p_content: $("pPost").value.trim() || "📷", p_image: pendingImg });
+    clearImg(); $("pPost").value = ""; toast("已提交，管理员通过后别人才能看到图片"); show("home"); loadPosts(true); return;
+  }
   await rpc("create_post", { p_content: $("pPost").value });
   $("pPost").value = ""; toast("发布成功"); show("home"); loadPosts(true);
 });
@@ -539,13 +606,79 @@ function adminPage(){
     const sc = scroller(body);
     const b1 = el("button", "btn", "被举报的内容");
     const b2 = el("button", "btn ghost", "审核私信"); b2.style.marginTop = "8px";
+    const b4 = el("button", "btn", "待审核图片"); b4.style.marginBottom = "8px";
+    b4.onclick = () => pushPage("待审核图片", renderImageReview);
+    rpc("admin_pending_images").then((rows) => { if (rows.length) b4.textContent = "待审核图片 (" + rows.length + ")"; }).catch(() => {});
+    const b3 = el("button", "btn ghost", "用户与 IP"); b3.style.marginTop = "8px";
+    b3.onclick = () => pushPage("用户与 IP", renderUsers);
     b1.onclick = () => pushPage("被举报的内容", renderReports);
     b2.onclick = () => pushPage("审核私信", renderAdminChats);
-    sc.append(b1, b2);
+    sc.append(b4, b1, b2, b3);
   });
 }
 $("bAdmin").onclick = adminPage;
 
+function userCard(sc, name, uid, banned, ips){
+  const c = el("div", "card");
+  const m = el("div", "meta");
+  m.append(el("strong", "", name), el("span", "", banned ? "已封号" : "正常"));
+  c.append(m);
+  const got = ips.filter((x) => x.ip);
+  if (!got.length) c.append(el("p", "hint", "没有记录到 IP（可能是 IP 记录功能上线前发的）。"));
+  got.forEach((x) => c.append(el("div", "body", "IP " + x.ip + "　最后出现 " + fmt(x.last_seen) + "　共 " + x.hits + " 次")));
+  const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px";
+  [["封号", false], ["封号+IP", true]].forEach(([t, withIp]) => {
+    const b = el("button", "chip ghost", t);
+    b.onclick = async () => {
+      if (!confirm("确定" + t + "吗？")) return;
+      try { await rpc("admin_ban", { p_user: uid, p_with_ip: withIp }); toast("已处理"); } catch (e) { toast(msgOf(e)); }
+    };
+    row.append(b);
+  });
+  c.append(row); sc.append(c);
+}
+function renderAuthor(body, postId){
+  const sc = scroller(body);
+  sc.append(el("p", "hint", "同一个 IP 可能是很多人共用的（学校 WiFi、手机流量），只能当线索，不能当证据。"));
+  rpc("admin_post_author", { p_post: postId }).then((rows) => {
+    if (!rows.length) { sc.append(el("p", "hint", "找不到这条帖子。")); return; }
+    const r = rows[0];
+    userCard(sc, (r.username || r.nickname || "（旧账号）"), r.author_id, r.banned, rows);
+  }).catch((e) => toast(msgOf(e)));
+}
+function renderUsers(body){
+  const sc = scroller(body);
+  sc.append(el("p", "hint", "按最近出现时间排序。同一个 IP 只记录最后用它的账号。"));
+  rpc("admin_users").then((rows) => {
+    if (!rows.length) sc.append(el("p", "hint", "还没有用户。"));
+    rows.forEach((r) => userCard(sc, r.username || r.nickname || "（旧账号）", r.user_id, r.banned, [r]));
+  }).catch((e) => toast(msgOf(e)));
+}
+function renderImageReview(body){
+  const sc = scroller(body);
+  sc.append(el("p", "hint", "通过后所有人可见；拒绝会删掉图片，帖子文字保留。"));
+  rpc("admin_pending_images").then((rows) => {
+    if (!rows.length) sc.append(el("p", "hint", "没有待审核的图片。"));
+    rows.forEach((r) => {
+      const c = el("div", "card");
+      const m = el("div", "meta"); m.append(el("strong", "", r.username || "（旧账号）"), el("span", "", fmt(r.created_at)));
+      c.append(m, el("div", "body", r.content));
+      const ib = imageBlock(r.id, null); c.append(ib);
+      const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px";
+      const act = (t, fn, cls) => {
+        const b = el("button", "chip" + (cls ? " " + cls : ""), t);
+        b.onclick = async () => { try { await fn(); c.remove(); toast("已处理"); } catch (e) { toast(msgOf(e)); } };
+        return b;
+      };
+      row.append(
+        act("通过", () => rpc("admin_review_image", { p_id: r.id, p_ok: true })),
+        act("拒绝", () => rpc("admin_review_image", { p_id: r.id, p_ok: false }), "ghost"),
+        act("拒绝+封号", async () => { await rpc("admin_review_image", { p_id: r.id, p_ok: false }); await rpc("admin_ban", { p_user: r.owner_id, p_with_ip: false }); }, "ghost")
+      );
+      c.append(row); sc.append(c);
+    });
+  }).catch((e) => toast(msgOf(e)));
+}
 function renderReports(body){
   const sc = scroller(body);
   rpc("admin_reports").then((rows) => {
